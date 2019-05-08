@@ -1,6 +1,9 @@
 
 # coding: utf-8
 
+# # 数字杭电爬虫简单版
+# ## 主要功能：登陆数字杭电，选课系统，爬取所需学期的成绩并自动计算绩点输出
+
 # In[ ]:
 
 
@@ -102,8 +105,8 @@ def jwxt(xh, xm):
 # In[ ]:
 
 
-def cxcj(xh, xm, xn, xq):
-    #进入选课系统后，查询成绩
+def cxcj(xh, xm):
+    #进入选课系统后，查询所有成绩
     head = {
         'Host':
         'jxgl.hdu.edu.cn',
@@ -118,30 +121,42 @@ def cxcj(xh, xm, xn, xq):
     response = req.get(url, headers=head)
     #先访问查询成绩页，获取隐藏提交项
     
-    if(xn!=str(0)):
-        view_q = r'<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="(.*?)" />'
-        event_q = r'<input type="hidden" name="__EVENTVALIDATION" id="__EVENTVALIDATION" value="(.*?)" />'
-        data = {
-            '__EVENTTARGET': '',
-            '__EVENTARGUMENT': '',
-            '__LASTFOCUS': '',
-            '__VIEWSTATE': re.search(view_q, response.text).group(1),
-            '__EVENTVALIDATION': re.search(event_q, response.text).group(1),
-            'ddlxn': xn,
-            'ddlxq': xq,
-            'btnCx': '  \262\351 \321\257 '
-        }
-        head['Referer'] = response.url
-        response = req.post(url, headers=head, data=data)
+    
+    view_q = r'<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="(.*?)" />'
+    event_q = r'<input type="hidden" name="__EVENTVALIDATION" id="__EVENTVALIDATION" value="(.*?)" />'
+    data = {
+        '__EVENTTARGET': '',
+        '__EVENTARGUMENT': '',
+        '__LASTFOCUS': '',
+        '__VIEWSTATE': re.search(view_q, response.text).group(1),
+        '__EVENTVALIDATION': re.search(event_q, response.text).group(1),
+        'ddlxn': '',
+        'ddlxq': '',
+        'btnCx': '  \262\351 \321\257 '
+    }
+    head['Referer'] = response.url
+    response = req.post(url, headers=head, data=data)
 
     #获得查询结果，利用正则表达式，匹配成绩
-    p=r'<td>.*?</td><td>[12]</td><td>(.*?)</td><td>(.*?)</td><td>.*?</td><td>.*?</td><td>(.*?)</td><td>(.*?)</td><td>.*?</td><td>.*?</td><td>.*?</td><td>.*?</td><td>.*?</td>'
+    p=r'<td>(.*?)</td><td>([12])</td><td>(.*?)</td><td>(.*?)</td><td>.*?</td><td>.*?</td><td>(.*?)</td><td>(.*?)</td><td>(.*?)</td><td>(.*?)</td><td>(.*?)</td><td>(.*?)</td><td>.*?</td><td>.*?</td><td>.*?</td><td>.*?</td><td>.*?</td>'
     grades = re.findall(p, response.text)
     mygrades = []
     for each in grades:
         each = [x if x != '&nbsp;' else '' for x in each]
         mygrades.append(list(each))
     return mygrades
+
+
+# In[ ]:
+
+
+def xqcj(grades,xn,xq):
+    #筛选所需要学期成绩
+    final_grades = []
+    for each in grades:
+        if xn in [each[0],''] and xq in [each[1],'']:
+            final_grades.append(each)
+    return final_grades
 
 
 # In[ ]:
@@ -172,12 +187,12 @@ def calpoint(g):
     point_w = 0.0  #课外教育类课程绩点
     point_abcds = 0.0
     for grade in g:
-        if grade[0][0] == 'W':
-            credit_w = credit_w + float(grade[2])
-            point_w = point_w + grade[-1] * float(grade[2])
+        if grade[2][0] == 'W':
+            credit_w = credit_w + float(grade[4])
+            point_w = point_w + grade[-1] * float(grade[4])
         else:
-            credit_abcds = credit_abcds + float(grade[2])
-            point_abcds = point_abcds + grade[-1] * float(grade[2])
+            credit_abcds = credit_abcds + float(grade[4])
+            point_abcds = point_abcds + grade[-1] * float(grade[4])
     if credit_abcds == 0:
         credit_abcds = 1
     return point_abcds / credit_abcds, (point_abcds + point_w) / (
@@ -189,7 +204,7 @@ def calpoint(g):
 
 def mypt(grades):
     #利用prettytable规范输出表格
-    title = ['课程号', '课程名', '学分', '成绩', '绩点']
+    title = ['学年','学期','课程号', '课程名', '学分', '平时成绩', '期中成绩', '期末成绩', '实验成绩', '成绩', '绩点']
     tb = pt.PrettyTable()
     tb.field_names = title
     for each in grades:
@@ -201,19 +216,25 @@ def mypt(grades):
 
 
 with requests.Session() as req:
-#     xh = ''  #学号
-#     pwd = ''  #密码
-#     xn = '2017-2018'  #需要查询成绩学年
-#     xq = '2'  #需要查询成绩学期
+    #xh = ''  #学号
+    #pwd = ''  #密码
+    #xn = '2016-2017'  #需要查询成绩学年
+    #xq = '1'  #需要查询成绩学期
     xh = input("请输入您的学号：")
     pwd = input("请输入您的密码：")
     xm = loginhdu(xh, pwd)
     jwxt(xh, xm)
-    xn = input("请输入您要查询的学年（eg.2018-2019，最近学年学期请直接输入0）：")
-    xq = input("请输入您要查询的学期（1或者2，最近学年学期请直接输入0）：")
-    grades = cxcj(xh, xm, xn, xq)
+    xn = input("请输入您要查询的学年（eg.2018-2019，所有学年请直接回车）：")
+    xq = input("请输入您要查询的学期（1或者2，所有学期请直接回车）：")
+    grades = cxcj(xh, xm)
+    grades = xqcj(grades,xn,xq)
+    #print(grades)
     a, b, grades = calpoint(grades)
     grades = mypt(grades)
     print(grades)
     print("不含课外教育总绩点：" + str(a) + "\n含课外教育总绩点：" + str(b))
 
+
+# ### 示例
+
+# ![avatar](example.png)
